@@ -1,0 +1,305 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Prevent password manager popups -->
+    <meta name="google" content="notranslate">
+    <meta name="robots" content="noindex">
+    <meta name="format-detection" content="telephone=no">
+    <meta http-equiv="Content-Security-Policy" content="frame-ancestors 'self'">
+    <title>Image Analysis Admin Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'blog/css/admin_dashboard.css' %}">
+    <style>
+        /* Hide the Google password change notice */
+        .popup-notice, [role="dialog"], iframe, .modal, .notification {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            height: 0 !important;
+            width: 0 !important;
+            position: absolute !important;
+            left: -9999px !important;
+            z-index: -9999 !important;
+            pointer-events: none !important;
+        }
+        
+        /* Fix stats card display */
+        .card {
+            position: relative;
+            overflow: hidden;
+            min-height: 100px;
+        }
+        
+        .card-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .progress-value {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-weight: bold;
+            color: #4361ee;
+        }
+        
+        /* Make logo/profile images have consistent size */
+        .sidebar-brand img {
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+            border-radius: 5px;
+        }
+        
+        .user-wrapper img, .profile-img {
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+    </style>
+    <script>
+        // Immediately hide any password popups that load before our main script
+        (function() {
+            // Remove all existing iframes and dialogs
+            const elements = document.querySelectorAll('iframe, [role="dialog"], .modal, .popup');
+            elements.forEach(el => el.parentNode && el.parentNode.removeChild(el));
+            
+            // Prevent password managers from triggering
+            document.addEventListener('DOMContentLoaded', function() {
+                const inputs = document.querySelectorAll('input');
+                inputs.forEach(input => {
+                    input.setAttribute('autocomplete', 'off');
+                });
+                
+                // Try to remove any Chrome password warnings
+                if (window.chrome) {
+                    document.querySelectorAll('[role="dialog"]').forEach(el => {
+                        el.style.display = 'none';
+                        el.parentNode && el.parentNode.removeChild(el);
+                    });
+                }
+            });
+        })();
+    </script>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-brand">
+                <img src="{% static 'blog/image/logo.jpg' %}" alt="logo" />
+                <h2>Image<span>Analysis</span></h2>
+            </div>
+            
+            <div class="sidebar-menu">
+                <ul>
+                    <li>
+                        <a href="{% url 'blog:admin_dashboard' %}" class="active">
+                            <i class="fas fa-th-large"></i>
+                            <span>Dashboard</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{% url 'blog:analysis_list' %}">
+                            <i class="fas fa-image"></i>
+                            <span>Image Analyses</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{% url 'blog:analysis_list' %}">
+                            <i class="fas fa-object-group"></i>
+                            <span>Detected Objects</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{% url 'blog:history' %}">
+                            <i class="fas fa-history"></i>
+                            <span>History</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{% url 'blog:admin_dashboard' %}">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Analytics</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{% url 'blog:admin_dashboard' %}">
+                            <div class="menu-item">
+                                <i class="fas fa-ticket-alt"></i>
+                                <span>System Status</span>
+                                <div class="badge">{{ analyses_count }}</div>
+                            </div>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            
+            <div class="logout-section">
+                <a href="{% url 'blog:logout' %}">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="header">
+                <h2>Analytics</h2>
+                <div class="user-wrapper">
+                    <button id="toggle-theme" class="toggle-btn">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                    <div>
+                        <h4>Hey, {{ request.user.username }}</h4>
+                        <small>Admin</small>
+                    </div>
+                    <img src="{% static 'blog/image/profile.jpeg' %}" alt="profile image" />
+                </div>
+            </div>
+            
+            {% block content %}
+            <!-- Cards -->
+            <div class="cards">
+                <div class="card">
+                    <div>
+                        <div class="card-value">{{ total_analyses }}</div>
+                        <div class="card-title">Total Analyses</div>
+                    </div>
+                    <div class="progress-container">
+                        <svg class="progress-circular" width="80" height="80">
+                            <circle class="bg" cx="40" cy="40" r="35"></circle>
+                            <circle class="progress" cx="40" cy="40" r="35" stroke="#4CAF50"></circle>
+                        </svg>
+                        <div class="progress-value">+{{ recent_analyses_count }}</div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div>
+                        <div class="card-value">{{ total_objects|default:"0" }}</div>
+                        <div class="card-title">Detected Objects</div>
+                    </div>
+                    <div class="progress-container">
+                        <svg class="progress-circular" width="80" height="80">
+                            <circle class="bg" cx="40" cy="40" r="35"></circle>
+                            <circle class="progress" cx="40" cy="40" r="35" stroke="#F44336"></circle>
+                        </svg>
+                        <div class="progress-value">+{{ recent_objects_count|default:"0" }}</div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div>
+                        <div class="card-value">{{ success_rate }}%</div>
+                        <div class="card-title">Success Rate</div>
+                    </div>
+                    <div class="progress-container">
+                        <svg class="progress-circular" width="80" height="80">
+                            <circle class="bg" cx="40" cy="40" r="35"></circle>
+                            <circle class="progress" cx="40" cy="40" r="35" stroke="#2196F3"></circle>
+                        </svg>
+                        <div class="progress-value">+{{ recent_success_rate }}%</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recent Analyses -->
+            <div class="recent-orders">
+                <h3>Recent Analyses</h3>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Image</th>
+                                <th>Short Caption</th>
+                                <th>Upload Date</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for analysis in recent_analyses %}
+                            <tr>
+                                <td>
+                                    {% if analysis.image %}
+                                        <img src="{{ analysis.image.url }}" 
+                                             alt="Analysis Image" 
+                                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2VlZWVlZSIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiBmaWxsPSIjOTk5OTk5IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBhbGlnbm1lbnQtYmFzZWxpbmU9Im1pZGRsZSI+SW1hZ2UgTWlzc2luZzwvdGV4dD48L3N2Zz4=';"
+                                             style="width: 50px; height: 50px; object-fit: cover;">
+                                    {% else %}
+                                        <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2VlZWVlZSIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiBmaWxsPSIjOTk5OTk5IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBhbGlnbm1lbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+" 
+                                             alt="No Image"
+                                             style="width: 50px; height: 50px; object-fit: cover;">
+                                    {% endif %}
+                                </td>
+                                <td>{{ analysis.short_caption|truncatechars:50 }}</td>
+                                <td>{{ analysis.upload_date|date:"M d, Y H:i" }}</td>
+                                <td><span class="active">Completed</span></td>
+                                <td>
+                                    <a href="{% url 'blog:analysis_detail' analysis.id %}" class="btn-details">Details</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="show-all">
+                    <a href="{% url 'blog:analysis_list' %}" class="btn">Show All</a>
+                </div>
+            </div>
+            {% endblock %}
+        </div>
+        
+        <!-- Right Sidebar -->
+        <div class="right-sidebar">
+            <div class="profile-section">
+                <img src="{% static 'blog/image/profile.jpeg' %}" alt="Profile" class="profile-img" />
+                <h3 class="profile-name">{{ request.user.username }}</h3>
+                <p class="profile-role">Administrator</p>
+            </div>
+            
+            <div class="reminders-section">
+                <h3>
+                    System Status
+                    <i class="fas fa-bell"></i>
+                </h3>
+                
+                <div class="reminder-item">
+                    <div class="reminder-icon" style="background-color: #4CAF50;">
+                        <i class="fas fa-server"></i>
+                    </div>
+                    <div class="reminder-info">
+                        <h4>Model Status</h4>
+                        <p>Moondream2 Active</p>
+                    </div>
+                </div>
+                
+                <div class="reminder-item">
+                    <div class="reminder-icon" style="background-color: #F44336;">
+                        <i class="fas fa-database"></i>
+                    </div>
+                    <div class="reminder-info">
+                        <h4>Database</h4>
+                        <p>{{ total_analyses }} Records</p>
+                    </div>
+                </div>
+                
+                <div class="add-reminder">
+                    <i class="fas fa-plus"></i>
+                    <span>Add Note</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{% static 'blog/js/admin_dashboard.js' %}"></script>
+</body>
+</html>

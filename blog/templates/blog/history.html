@@ -1,0 +1,65 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis History - Contextual Object Detection</title>
+    <link rel="stylesheet" href="{% static 'blog/style.css' %}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Analysis History</h1>
+            <div class="nav-links">
+                <a href="{% url 'blog:home' %}">Home</a>
+                <a href="{% url 'blog:history' %}" class="active">History</a>
+            </div>
+        </header>
+        
+        <div class="main-content">
+            <div class="history-list">
+                {% if analyses %}
+                    {% for analysis in analyses %}
+                        <div class="history-item">
+                            <div class="history-image">
+                                {% if analysis.image %}
+                                    <img src="{{ analysis.image.url }}" alt="Analysis image - ID {{ analysis.id }}">
+                                {% else %}
+                                    <p>No image available</p>
+                                {% endif %}
+                            </div>
+                            <div class="history-details">
+                                <h3>Analysis #{{ analysis.id }}</h3>
+                                <p class="date">{{ analysis.upload_date|date:"F d, Y H:i" }}</p>
+                                <p class="caption">{{ analysis.short_caption }}</p>
+                                {% if analysis.query_text %}
+                                    <div class="query">
+                                        <p><strong>Q:</strong> {{ analysis.query_text }}</p>
+                                        <p><strong>A:</strong> {{ analysis.query_result }}</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="no-history">
+                        <p>No analyses found. Upload an image to get started!</p>
+                        <a href="{% url 'blog:home' %}" class="btn primary">Upload Image</a>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Optional Upload Form for Enhanced Usability -->
+            <div class="upload-section">
+                <h2>Upload New Image for Analysis</h2>
+                <form method="POST" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="file" name="image" accept="image/*" required>
+                    <button type="submit" class="btn upload-btn">Upload</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

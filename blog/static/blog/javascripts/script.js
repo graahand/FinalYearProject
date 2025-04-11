@@ -1,0 +1,266 @@
+document.addEventListener("DOMContentLoaded", function() {
+    console.log("JavaScript loaded successfully!");
+
+    // Get elements
+    const browseBtn = document.getElementById("browse-files-btn");
+    const fileInput = document.getElementById("file-input");
+    const uploadBtn = document.getElementById("upload-btn");
+    const cameraBtn = document.getElementById("camera-btn");
+    const dropZone = document.getElementById("drop-zone");
+    const queryInput = document.getElementById("query-input");
+    const resultsContainer = document.getElementById("detection-results");
+
+    // Debug which elements are found
+    const elements = {
+        browseBtn,
+        fileInput,
+        uploadBtn,
+        cameraBtn,
+        dropZone,
+        queryInput,
+        resultsContainer
+    };
+
+    console.log("Found elements:", Object.fromEntries(
+        Object.entries(elements).map(([key, value]) => [key, !!value])
+    ));
+
+    // Browse button click handler
+    if (browseBtn && fileInput) {
+        browseBtn.addEventListener("click", () => fileInput.click());
+    }
+
+    // File input change handler
+    if (fileInput) {
+        fileInput.addEventListener("change", function(e) {
+            if (this.files.length > 0) {
+                const file = this.files[0];
+                if (file.type.startsWith('image/')) {
+                    uploadBtn.disabled = false;
+                    dropZone.querySelector('.upload-placeholder').innerHTML = `
+                        <i class="fas fa-file-image fa-3x"></i>
+                        <p>Selected: ${file.name}</p>
+                    `;
+                } else {
+                    alert('Please select an image file.');
+                    this.value = '';
+                }
+            }
+        });
+    }
+
+    // Upload button click handler
+    if (uploadBtn) {
+        uploadBtn.addEventListener("click", function(e) {
+            e.preventDefault();
+            if (fileInput.files.length > 0) {
+                processImage(fileInput.files[0]);
+            }
+        });
+    }
+
+    // Drop zone handlers
+    if (dropZone) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight(e) {
+            dropZone.classList.add('highlight');
+        }
+
+        function unhighlight(e) {
+            dropZone.classList.remove('highlight');
+        }
+
+        dropZone.addEventListener('drop', handleDrop, false);
+    }
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const file = dt.files[0];
+        
+        if (file && file.type.startsWith('image/')) {
+            fileInput.files = dt.files;
+            uploadBtn.disabled = false;
+            dropZone.querySelector('.upload-placeholder').innerHTML = `
+                <i class="fas fa-file-image fa-3x"></i>
+                <p>Selected: ${file.name}</p>
+            `;
+        } else {
+            alert('Please drop an image file.');
+        }
+    }
+
+    function processImage(file) {
+        // Show loading state
+        resultsContainer.innerHTML = `
+            <div class="loading">
+                <i class="fas fa-spinner fa-spin fa-3x"></i>
+                <p>Processing image...</p>
+            </div>
+        `;
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        if (queryInput && queryInput.value.trim()) {
+            formData.append('query_text', queryInput.value.trim());
+        }
+
+        // Get CSRF token
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        fetch('/blog/process-image/', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': csrftoken
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            // Display results
+            resultsContainer.innerHTML = `
+                <img src="${data.image_url}" alt="Analyzed image" class="result-image">
+                
+                <div class="caption-section">
+                    <h3>Short Caption</h3>
+                    <div class="caption-content">
+                        ${data.short_caption}
+                    </div>
+                </div>
+
+                <div class="caption-section">
+                    <h3>Detailed Caption</h3>
+                    <div class="caption-content">
+                        ${data.normal_caption}
+                    </div>
+                </div>
+
+                ${data.visual_query !== "No query provided" ? `
+                    <div class="caption-section">
+                        <h3>Query Result</h3>
+                        <div class="caption-content">
+                            ${data.visual_query}
+                        </div>
+                    </div>
+                ` : ''}
+            `;
+
+            // Reset upload button
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = '<span class="btn-icon">⇪</span> Upload';
+
+            // Reset upload area
+            dropZone.querySelector('.upload-placeholder').innerHTML = `
+                <i class="fas fa-cloud-upload-alt fa-3x"></i>
+                <p>Drop your image here</p>
+                <p class="upload-or">or</p>
+                <button class="btn" id="browse-files-btn">Browse Files</button>
+            `;
+            
+            // Scroll to results
+            resultsContainer.scrollIntoView({ behavior: 'smooth' });
+        })
+        .catch(error => {
+            resultsContainer.innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <p>${error.message}</p>
+                </div>
+            `;
+            
+            // Reset upload button
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = '<span class="btn-icon">⇪</span> Upload';
+        });
+    }
+
+    // Camera functionality
+    if (cameraBtn) {
+        cameraBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            const cameraContainer = document.createElement('div');
+            cameraContainer.className = 'camera-container';
+            cameraContainer.innerHTML = `
+                <div class="camera-content">
+                    <video autoplay class="camera-preview"></video>
+                    <div class="camera-controls">
+                        <button class="btn capture-btn">
+                            <i class="fas fa-camera"></i> Capture
+                        </button>
+                        <button class="btn close-btn">
+                            <i class="fas fa-times"></i> Close
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(cameraContainer);
+            
+            const video = cameraContainer.querySelector('video');
+            const captureBtn = cameraContainer.querySelector('.capture-btn');
+            const closeBtn = cameraContainer.querySelector('.close-btn');
+
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    video.srcObject = stream;
+                    
+                    captureBtn.addEventListener('click', () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        canvas.getContext('2d').drawImage(video, 0, 0);
+                        
+                        canvas.toBlob(blob => {
+                            const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' });
+                            stream.getTracks().forEach(track => track.stop());
+                            cameraContainer.remove();
+                            
+                            // Update file input and trigger upload
+                            const dataTransfer = new DataTransfer();
+                            dataTransfer.items.add(file);
+                            fileInput.files = dataTransfer.files;
+                            uploadBtn.disabled = false;
+                            processImage(file);
+                        }, 'image/jpeg');
+                    });
+                    
+                    closeBtn.addEventListener('click', () => {
+                        stream.getTracks().forEach(track => track.stop());
+                        cameraContainer.remove();
+                    });
+                })
+                .catch(err => {
+                    alert('Camera error: ' + err.message);
+                    cameraContainer.remove();
+                });
+        });
+    }
+});

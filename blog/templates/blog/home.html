@@ -1,0 +1,164 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Analysis System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'blog/main.css' %}">
+    <style>
+        .results-container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .caption-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+        .caption-section h3 {
+            margin-top: 0;
+            color: #333;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+        .caption-content {
+            line-height: 1.6;
+            color: #444;
+        }
+        .query-section {
+            margin-top: 20px;
+        }
+        .query-input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .result-image {
+            max-width: 100%;
+            height: auto;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Image Analysis System</h1>
+            {% if user.is_authenticated %}
+            <a href="{% url 'blog:admin_dashboard' %}" class="admin-btn">
+                <i class="fas fa-cog"></i> Admin Dashboard
+            </a>
+            {% else %}
+            <a href="{% url 'blog:login' %}" class="login-btn">
+                <i class="fas fa-sign-in-alt"></i> Admin Login
+            </a>
+            {% endif %}
+        </header>
+
+        <div class="upload-section">
+            <div class="upload-area" id="drop-zone">
+                <div class="upload-placeholder">
+                    <i class="fas fa-cloud-upload-alt fa-3x"></i>
+                    <p>Drop your image here</p>
+                    <p class="upload-or">or</p>
+                    <input type="file" id="file-input" accept="image/*" hidden>
+                    <button class="btn" id="browse-files-btn">Browse Files</button>
+                </div>
+            </div>
+
+            <div class="upload-options">
+                <button class="btn primary" id="upload-btn" disabled>
+                    <span class="btn-icon">⇪</span> Upload
+                </button>
+                <button class="btn" id="camera-btn">
+                    <span class="btn-icon">📷</span> Camera
+                </button>
+            </div>
+
+            <div class="query-section">
+                <input type="text" id="query-input" class="query-input" placeholder="Ask a question about the image (optional)">
+            </div>
+        </div>
+
+        <div id="detection-results" class="results-container">
+            {% if analysis_image %}
+            <img src="{{ analysis_image }}" alt="Analyzed image" class="result-image">
+            
+            <div class="caption-section">
+                <h3>Short Caption</h3>
+                <div class="caption-content">
+                    {{ short_caption }}
+                </div>
+            </div>
+
+            <div class="caption-section">
+                <h3>Detailed Caption</h3>
+                <div class="caption-content">
+                    {{ normal_caption }}
+                </div>
+            </div>
+
+            {% if query_result %}
+            <div class="caption-section">
+                <h3>Query Result</h3>
+                <div class="caption-content">
+                    {{ query_result }}
+                </div>
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+
+        {% if error %}
+        <div class="error-message">
+            <i class="fas fa-exclamation-circle"></i>
+            <p>{{ error }}</p>
+        </div>
+        {% endif %}
+
+        {% if analyses %}
+        <div class="analyses-grid">
+            {% for analysis in analyses %}
+            <div class="analysis-card">
+                {% if analysis.image %}
+                <img src="{{ analysis.image.url }}" alt="Analysis {{ analysis.id }}" class="analysis-image">
+                {% else %}
+                <div class="no-image">
+                    <i class="fas fa-image fa-3x"></i>
+                </div>
+                {% endif %}
+                <div class="analysis-details">
+                    <h3>Analysis #{{ analysis.id }}</h3>
+                    <p class="analysis-meta">
+                        <i class="fas fa-calendar"></i> {{ analysis.upload_date|date:"M d, Y" }}
+                    </p>
+                    {% if analysis.short_caption %}
+                    <p class="analysis-caption">{{ analysis.short_caption }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="no-analyses">
+            <i class="fas fa-image fa-3x"></i>
+            <h2>No Images Analyzed Yet</h2>
+            <p>Upload an image to see AI-powered analysis results here.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {% csrf_token %}
+    <script src="{% static 'blog/javascripts/script.js' %}?v=2"></script>
+</body>
+</html>

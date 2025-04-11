@@ -1,0 +1,133 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Analyses - Image Analysis System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4CAF50;
+            --primary-dark: #388E3C;
+            --text: #333;
+            --background: #f4f4f4;
+            --card: white;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--background);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            color: var(--primary);
+        }
+
+        .back-btn {
+            padding: 0.5rem 1rem;
+            background-color: var(--primary);
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .analyses-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .analysis-card {
+            background: var(--card);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .analysis-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .analysis-details {
+            padding: 1rem;
+        }
+
+        .analysis-details h3 {
+            margin-bottom: 0.5rem;
+            color: var(--text);
+        }
+
+        .analysis-meta {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .no-analyses {
+            text-align: center;
+            padding: 2rem;
+            background: var(--card);
+            border-radius: 10px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Image Analyses</h1>
+            <a href="{% url 'blog:admin_dashboard' %}" class="back-btn">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+        </header>
+
+        {% if analyses %}
+        <div class="analyses-grid">
+            {% for analysis in analyses %}
+            <div class="analysis-card">
+                <img src="{{ analysis.image.url }}" alt="Analysis {{ analysis.id }}" class="analysis-image">
+                <div class="analysis-details">
+                    <h3>Analysis #{{ analysis.id }}</h3>
+                    <p class="analysis-meta">
+                        <i class="fas fa-calendar"></i> {{ analysis.created_at|date:"M d, Y" }}
+                    </p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="no-analyses">
+            <i class="fas fa-image fa-3x" style="color: var(--primary); margin-bottom: 1rem;"></i>
+            <h2>No Images Analyzed Yet</h2>
+            <p>Upload some images to see them here.</p>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html> 
