@@ -144,48 +144,10 @@ document.addEventListener("DOMContentLoaded", function() {
                 throw new Error(data.error);
             }
 
-            // Display results
-            resultsContainer.innerHTML = `
-                <img src="${data.image_url}" alt="Analyzed image" class="result-image">
-                
-                <div class="caption-section">
-                    <h3>Short Caption</h3>
-                    <div class="caption-content">
-                        ${data.short_caption}
-                    </div>
-                </div>
-
-                <div class="caption-section">
-                    <h3>Detailed Caption</h3>
-                    <div class="caption-content">
-                        ${data.normal_caption}
-                    </div>
-                </div>
-
-                ${data.visual_query !== "No query provided" ? `
-                    <div class="caption-section">
-                        <h3>Query Result</h3>
-                        <div class="caption-content">
-                            ${data.visual_query}
-                        </div>
-                    </div>
-                ` : ''}
-            `;
-
-            // Reset upload button
-            uploadBtn.disabled = false;
-            uploadBtn.innerHTML = '<span class="btn-icon">⇪</span> Upload';
-
-            // Reset upload area
-            dropZone.querySelector('.upload-placeholder').innerHTML = `
-                <i class="fas fa-cloud-upload-alt fa-3x"></i>
-                <p>Drop your image here</p>
-                <p class="upload-or">or</p>
-                <button class="btn" id="browse-files-btn">Browse Files</button>
-            `;
-            
-            // Scroll to results
-            resultsContainer.scrollIntoView({ behavior: 'smooth' });
+            if (data.status === 'processing') {
+                // Start polling for results
+                pollForResults(data.job_id);
+            }
         })
         .catch(error => {
             resultsContainer.innerHTML = `
@@ -199,6 +161,83 @@ document.addEventListener("DOMContentLoaded", function() {
             uploadBtn.disabled = false;
             uploadBtn.innerHTML = '<span class="btn-icon">⇪</span> Upload';
         });
+    }
+
+    function pollForResults(jobId) {
+        const pollInterval = setInterval(() => {
+            fetch(`/blog/check-job/${jobId}/`, {
+                method: 'GET',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'completed') {
+                    clearInterval(pollInterval);
+                    displayResults(data);
+                } else if (data.status === 'failed') {
+                    clearInterval(pollInterval);
+                    throw new Error(data.error || 'Processing failed');
+                }
+                // If still processing, continue polling
+            })
+            .catch(error => {
+                clearInterval(pollInterval);
+                resultsContainer.innerHTML = `
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = '<span class="btn-icon">⇪</span> Upload';
+            });
+        }, 2000); // Poll every 2 seconds
+    }
+
+    function displayResults(data) {
+        resultsContainer.innerHTML = `
+            <img src="${data.image_url}" alt="Analyzed image" class="result-image">
+            
+            <div class="caption-section">
+                <h3>Short Caption</h3>
+                <div class="caption-content">
+                    ${data.short_caption || 'No caption generated'}
+                </div>
+            </div>
+
+            <div class="caption-section">
+                <h3>Detailed Caption</h3>
+                <div class="caption-content">
+                    ${data.normal_caption || 'No detailed caption generated'}
+                </div>
+            </div>
+
+            ${data.query_result ? `
+                <div class="caption-section">
+                    <h3>Query Result</h3>
+                    <div class="caption-content">
+                        ${data.query_result}
+                    </div>
+                </div>
+            ` : ''}
+        `;
+
+        // Reset upload button
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = '<span class="btn-icon">⇪</span> Upload';
+
+        // Reset upload area
+        dropZone.querySelector('.upload-placeholder').innerHTML = `
+            <i class="fas fa-cloud-upload-alt fa-3x"></i>
+            <p>Drop your image here</p>
+            <p class="upload-or">or</p>
+            <button class="btn" id="browse-files-btn">Browse Files</button>
+        `;
+        
+        // Scroll to results
+        resultsContainer.scrollIntoView({ behavior: 'smooth' });
     }
 
     // Camera functionality

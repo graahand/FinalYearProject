@@ -23,4 +23,5 @@ urlpatterns = [
     path('analysis/list/', views.analysis_list, name='analysis_list'),
     path('analysis/<int:pk>/', views.analysis_detail, name='analysis_detail'),
     path('analysis/<int:pk>/delete/', views.analysis_delete, name='analysis_delete'),
+    path('check-job/<str:job_id>/', views.check_job_status, name='check_job_status'),
 ]

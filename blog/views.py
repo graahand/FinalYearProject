@@ -7,7 +7,6 @@ import base64
 from django.utils import timezone
 import logging
 from .models import ImageAnalysis, DetectedObject
-from transformers import AutoModelForCausalLM, AutoProcessor
 import os
 from django.contrib.auth.decorators import login_required
 from datetime import timedelta
@@ -16,6 +15,19 @@ from django.contrib import messages
 import json
 from django.urls import reverse
 from django.db import connection
+import torch
+from django.core.cache import cache
+from asgiref.sync import async_to_sync
+import asyncio
+import torch.multiprocessing as mp
+from .model_handler import ModelHandler
+try:
+    import django_rq
+except ImportError:
+    raise ImportError("Please install django-rq: pip install django-rq")
+
+# Set multiprocessing start method
+mp.set_start_method('spawn', force=True)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -25,24 +37,6 @@ logger = logging.getLogger(__name__)
 vips_bin_path = "/home/putu/Documents/vips-dev-w64-web-8.16.1/vips-dev-8.16/bin"
 os.environ["PATH"] = vips_bin_path + os.pathsep + os.environ["PATH"]
 logger.info(f"Added VIPS path: {vips_bin_path}")
-
-# Initialize the model at module level
-moondream_model = None
-processor = None
-
-def initialize_moondream_model():
-    global moondream_model, processor
-    try:
-        processor = AutoProcessor.from_pretrained("vikhyatk/moondream2", trust_remote_code=True)
-        moondream_model = AutoModelForCausalLM.from_pretrained("vikhyatk/moondream2", trust_remote_code=True)
-        logger.info("Successfully loaded Moondream2 model via transformers")
-        return True
-    except Exception as e:
-        logger.error(f"Error loading Moondream2 model via transformers: {e}")
-        return False
-
-# Try to initialize the model when the module is loaded
-initialize_moondream_model()
 
 def home(request):
     """Render the home page."""
@@ -77,99 +71,68 @@ def history(request):
         logger.error(f"Error in history view: {str(e)}")
         return render(request, 'blog/history.html', {'analyses': [], 'error': str(e)})
 
-def process_image(request):
-    """Process uploaded image and return analysis results."""
-    if request.method != 'POST':
-        return JsonResponse({"error": "Only POST method is allowed"}, status=405)
-
-    # Log request details for debugging
-    logger.info(f"Request method: {request.method}")
-    logger.info(f"Files in request: {request.FILES}")
-    logger.info(f"POST data: {request.POST}")
-
+def process_image_task(image_file):
+    """Background task for processing images."""
     try:
-        # Check if model is initialized
-        if moondream_model is None:
-            logger.error("Model not initialized")
-            return JsonResponse({"error": "Model not initialized. Please try again later."}, status=500)
-
-        # Get the image file
-        image_file = request.FILES.get('image')
-        if not image_file:
-            logger.error("No image file in request")
-            return JsonResponse({"error": "No image file provided"}, status=400)
-
-        # Validate file type
-        if not image_file.content_type.startswith('image/'):
-            logger.error(f"Invalid file type: {image_file.content_type}")
-            return JsonResponse({"error": "Invalid file type. Please upload an image file."}, status=400)
-
-        # Get query text if provided
-        query_text = request.POST.get('query_text', '').strip()
-        logger.info(f"Query text: {query_text}")
-
-        try:
-            # Open and validate image
-            image = Image.open(image_file).convert("RGB")
-            
-            # Create two versions:
-            # 1. 512x512 for model processing
-            image_for_model = image.copy()
-            image_for_model.thumbnail((512, 512), Image.Resampling.LANCZOS)
-            
-            # 2. 640x480 for display
-            display_image = image.copy()
-            display_image.thumbnail((640, 480), Image.Resampling.LANCZOS)
-            
-            # Convert display version to base64
-            buffered = io.BytesIO()
-            display_image.save(buffered, format="JPEG", quality=90)
-            img_str = base64.b64encode(buffered.getvalue()).decode()
-
-            try:
-                # Use the model version for processing
-                short_caption = moondream_model.caption(image_for_model, length="short")["caption"]
-                normal_caption = "".join(moondream_model.caption(image_for_model, length="normal", stream=True)["caption"])
-                
-                # Handle the query if provided
-                query_result = None
-                if query_text:
-                    query_result = moondream_model.query(image_for_model, query_text)["answer"]
-                
-                # Save to database
-                analysis = ImageAnalysis.objects.create(
-                    image=image_file,
-                    short_caption=short_caption,
-                    normal_caption=normal_caption,
-                    query_text=query_text if query_text else None,
-                    query_result=query_result,
-                    upload_date=timezone.now()
-                )
-
-                # Prepare response data
-                response_data = {
-                    'status': 'success',
-                    'analysis_id': analysis.id,
-                    'image_url': f"data:image/jpeg;base64,{img_str}",
-                    'short_caption': short_caption,
-                    'normal_caption': normal_caption,
-                    'visual_query': query_result if query_result else "No query provided"
-                }
-
-                logger.info("Successfully processed image")
-                return JsonResponse(response_data)
-
-            except Exception as e:
-                logger.error(f"Error in model processing: {str(e)}")
-                return JsonResponse({"error": f"Error analyzing image content: {str(e)}"}, status=500)
-
-        except Exception as e:
-            logger.error(f"Error processing image: {str(e)}")
-            return JsonResponse({"error": f"Error processing image: {str(e)}"}, status=500)
-
+        # Get model handler instance
+        model_handler = ModelHandler.get_instance()
+        
+        # Process image
+        image = Image.open(image_file).convert("RGB")
+        logger.info(f"Processing image: {image_file}")
+        
+        # Generate captions and query result
+        short_caption = model_handler.generate_short_caption(image)
+        normal_caption = model_handler.generate_normal_caption(image)
+        query_result = model_handler.process_query(image)
+        
+        # Create analysis record
+        analysis = ImageAnalysis.objects.create(
+            image=image_file,
+            short_caption=short_caption,
+            normal_caption=normal_caption,
+            query_result=query_result
+        )
+        
+        logger.info(f"Created analysis record with ID: {analysis.id}")
+        return analysis.id
     except Exception as e:
-        logger.error(f"Error handling request: {str(e)}")
-        return JsonResponse({"error": f"Server error: {str(e)}"}, status=500)
+        logger.error(f"Error in process_image_task: {str(e)}")
+        return None
+
+def process_image(request):
+    """Handle image upload and processing."""
+    try:
+        if 'image' not in request.FILES:
+            return JsonResponse({'error': 'No image file provided'}, status=400)
+            
+        # Get the image file
+        image_file = request.FILES['image']
+        
+        # Get optional query text
+        query_text = request.POST.get('query_text', '')
+        
+        # Enqueue the job
+        queue = django_rq.get_queue('default')
+        job = queue.enqueue(
+            process_image_task,
+            image_file,
+            job_timeout=600  # 10 minutes timeout
+        )
+        
+        # Return the job ID and initial response
+        return JsonResponse({
+            'job_id': job.id,
+            'status': 'processing',
+            'message': 'Image uploaded and processing started'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in process_image view: {str(e)}")
+        return JsonResponse({
+            'error': 'Error processing image',
+            'details': str(e)
+        }, status=500)
 
 def login_view(request):
     # Check if user is already logged in
@@ -328,4 +291,119 @@ def analysis_delete(request, pk):
         analysis.delete()
         messages.success(request, 'Analysis deleted successfully')
         return redirect('blog:analysis_list')
-    return redirect('blog:analysis_list') 
+    return redirect('blog:analysis_list')
+
+def get_model_prediction(image):
+    cache_key = f"image_analysis_{hash(image.tobytes())}"
+    result = cache.get(cache_key)
+    if result is None:
+        model_handler = ModelHandler.get_instance()
+        result = model_handler.process_query(image)
+        cache.set(cache_key, result, timeout=3600)
+    return result
+
+def optimize_image(image):
+    # Use PIL's optimize flag
+    optimized = image.copy()
+    optimized.thumbnail((512, 512), Image.Resampling.BILINEAR)  # Faster than LANCZOS
+    return optimized
+
+def process_with_model(image):
+    """Process an image with the Moondream model."""
+    try:
+        model_handler = ModelHandler.get_instance()
+        result = model_handler.process_query(image)
+        return result
+    except Exception as e:
+        logger.error(f"Error in process_with_model: {str(e)}")
+        return None
+
+async def generate_short_caption(image):
+    """Generate a short caption for the image."""
+    try:
+        model_handler = ModelHandler.get_instance()
+        result = model_handler.generate_short_caption(image)
+        logger.info(f"Generated short caption: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error in generate_short_caption: {str(e)}")
+        return "Error generating short caption"
+
+async def generate_normal_caption(image):
+    """Generate a detailed caption for the image."""
+    try:
+        model_handler = ModelHandler.get_instance()
+        result = model_handler.generate_normal_caption(image)
+        logger.info(f"Generated normal caption: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error in generate_normal_caption: {str(e)}")
+        return "Error generating detailed caption"
+
+async def process_query(image, query="What is in this image?"):
+    """Process a specific query about the image."""
+    try:
+        model_handler = ModelHandler.get_instance()
+        result = model_handler.process_query(image, query)
+        logger.info(f"Generated query response: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error in process_query: {str(e)}")
+        return f"Error processing query: {query}"
+
+def check_job_status(request, job_id):
+    """Check the status of a background job."""
+    try:
+        # Get the job from Redis
+        job = django_rq.get_queue().fetch_job(job_id)
+        
+        if job is None:
+            return JsonResponse({
+                'status': 'failed',
+                'error': 'Job not found'
+            }, status=404)
+            
+        if job.is_failed:
+            return JsonResponse({
+                'status': 'failed',
+                'error': str(job.exc_info)
+            })
+            
+        if job.is_finished:
+            # Get the analysis ID from the job result
+            analysis_id = job.result
+            
+            if analysis_id is None:
+                return JsonResponse({
+                    'status': 'failed',
+                    'error': 'Processing failed'
+                })
+                
+            # Get the analysis object
+            try:
+                analysis = ImageAnalysis.objects.get(id=analysis_id)
+                return JsonResponse({
+                    'status': 'completed',
+                    'image_url': analysis.image.url,
+                    'short_caption': analysis.short_caption,
+                    'normal_caption': analysis.normal_caption,
+                    'query_result': analysis.query_result
+                })
+            except ImageAnalysis.DoesNotExist:
+                return JsonResponse({
+                    'status': 'failed',
+                    'error': 'Analysis not found'
+                })
+                
+        # Job is still in progress
+        return JsonResponse({
+            'status': 'processing',
+            'message': 'Image is still being processed'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error checking job status: {str(e)}")
+        return JsonResponse({
+            'status': 'failed',
+            'error': str(e)
+        }, status=500) 
