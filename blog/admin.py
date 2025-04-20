@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import ImageAnalysis, DetectedObject
+from .models import ImageAnalysis, DetectedObject, UserProfile
 
 class DetectedObjectInline(admin.TabularInline):
     model = DetectedObject
@@ -17,15 +17,15 @@ class DetectedObjectInline(admin.TabularInline):
 class ImageAnalysisAdmin(admin.ModelAdmin):
     list_display = ['id', 'thumbnail', 'short_caption_preview', 'upload_date']
     list_display_links = ['id', 'thumbnail']
-    search_fields = ['short_caption', 'normal_caption', 'query_text', 'query_result']
+    search_fields = ['short_caption', 'query_text', 'query_result']
     list_filter = ['upload_date']
-    readonly_fields = ['image_preview', 'upload_date', 'short_caption', 'normal_caption', 'query_text', 'query_result']
+    readonly_fields = ['image_preview', 'upload_date', 'short_caption', 'query_text', 'query_result']
     fieldsets = [
         ('Image', {
             'fields': ['image', 'image_preview', 'upload_date']
         }),
         ('Generated Content', {
-            'fields': ['short_caption', 'normal_caption'],
+            'fields': ['short_caption'],
             'classes': ['wide']
         }),
         ('Visual Query', {
@@ -72,9 +72,40 @@ class DetectedObjectAdmin(admin.ModelAdmin):
     confidence_display.short_description = "Confidence"
     
     def analysis_link(self, obj):
-        link = format_html('<a href="{}">{}</a>', 
-                          f"/admin/blog/imageanalysis/{obj.analysis.id}/change/", 
-                          f"Analysis #{obj.analysis.id}")
-        return link
+        if obj.image_analysis:
+            return format_html('<a href="{}">{}</a>', 
+                          f"/admin/blog/imageanalysis/{obj.image_analysis.id}/change/", 
+                          f"Analysis #{obj.image_analysis.id}")
+        return "No image analysis"
     
     analysis_link.short_description = "Analysis"
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ['username', 'full_name', 'email', 'display_profile_pic', 'date_joined']
+    search_fields = ['user__username', 'user__email', 'user__first_name', 'user__last_name']
+    list_filter = ['date_joined']
+    readonly_fields = ['date_joined', 'user', 'profile_pic_preview']
+    
+    def username(self, obj):
+        return obj.user.username
+    
+    def full_name(self, obj):
+        return f"{obj.user.first_name} {obj.user.last_name}"
+    
+    def email(self, obj):
+        return obj.user.email
+    
+    def display_profile_pic(self, obj):
+        if obj.profile_picture:
+            return format_html('<img src="{}" width="50" height="50" style="object-fit: cover; border-radius: 50%;" />', obj.profile_picture.url)
+        return "No Image"
+    
+    display_profile_pic.short_description = "Profile Picture"
+    
+    def profile_pic_preview(self, obj):
+        if obj.profile_picture:
+            return format_html('<img src="{}" style="max-width: 300px; max-height: 300px;" />', obj.profile_picture.url)
+        return "No Image"
+    
+    profile_pic_preview.short_description = "Profile Picture Preview"

@@ -4,141 +4,173 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Login - Image Analysis System</title>
+    <title>Login - Contextual Object Detection</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'blog/main.css' %}">
     <style>
-        :root {
-            --primary: #4CAF50;
-            --primary-dark: #388E3C;
-            --text: #333;
-            --background: #f4f4f4;
-            --error: #f44336;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        body {
-            background-color: var(--background);
-            color: var(--text);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .login-container {
-            background: white;
-            padding: 2rem;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            width: 100%;
+        .auth-container {
             max-width: 400px;
+            margin: 60px auto;
+            padding: 30px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
         }
-
-        .login-header {
+        
+        .auth-header {
             text-align: center;
-            margin-bottom: 2rem;
+            margin-bottom: 30px;
         }
-
-        .login-header h1 {
+        
+        .auth-header h2 {
             color: var(--primary);
-            margin-bottom: 0.5rem;
+            font-size: 2rem;
+            margin-bottom: 10px;
         }
-
-        .form-group {
-            margin-bottom: 1.5rem;
+        
+        .auth-form .form-group {
+            margin-bottom: 20px;
         }
-
-        .form-group label {
+        
+        .auth-form label {
             display: block;
-            margin-bottom: 0.5rem;
-            color: var(--text);
+            margin-bottom: 5px;
+            color: var(--text-primary);
+            font-weight: 600;
         }
-
-        .form-group input {
+        
+        .auth-form input {
             width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #ddd;
+            padding: 12px;
+            border: 1px solid var(--divider);
             border-radius: 5px;
-            font-size: 1rem;
+            font-size: 16px;
         }
-
-        .form-group input:focus {
+        
+        .auth-form input:focus {
             outline: none;
             border-color: var(--primary);
         }
-
-        .submit-btn {
+        
+        .auth-btn {
             width: 100%;
-            padding: 0.75rem;
             background-color: var(--primary);
             color: white;
             border: none;
+            padding: 12px;
             border-radius: 5px;
-            font-size: 1rem;
+            font-size: 16px;
+            font-weight: 600;
             cursor: pointer;
             transition: background-color 0.3s;
         }
-
-        .submit-btn:hover {
+        
+        .auth-btn:hover {
             background-color: var(--primary-dark);
         }
-
-        .back-link {
-            display: block;
+        
+        .auth-links {
             text-align: center;
-            margin-top: 1rem;
-            color: var(--text);
+            margin-top: 20px;
+        }
+        
+        .auth-links a {
+            color: var(--primary);
             text-decoration: none;
         }
-
-        .back-link:hover {
-            color: var(--primary);
+        
+        .auth-links a:hover {
+            text-decoration: underline;
         }
-
+        
         .error-message {
             color: var(--error);
-            margin-bottom: 1rem;
-            text-align: center;
+            background-color: #ffebee;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .success-message {
+            color: var(--success);
+            background-color: #e8f5e9;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .info-message {
+            color: #0277bd;
+            background-color: #e1f5fe;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
         }
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <div class="login-header">
-            <h1>Admin Login</h1>
-            <p>Please sign in to access the dashboard</p>
-        </div>
-
-        {% if messages %}
-        <div class="error-message">
-            {% for message in messages %}
-                {{ message }}
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        <form method="post" action="{% url 'blog:login' %}">
-            {% csrf_token %}
-            <div class="form-group">
-                <label for="id_username">Username</label>
-                <input type="text" name="username" id="id_username" required>
+    <div class="container">
+        <header class="header">
+            <h1>Contextual Object Detection</h1>
+            <a href="{% url 'blog:home' %}" class="back-btn">
+                <i class="fas fa-arrow-left"></i> Back to Home
+            </a>
+        </header>
+        
+        <div class="auth-container">
+            <div class="auth-header">
+                <h2>Welcome Back</h2>
+                <p>Log in to your account to access contextual object detection features</p>
             </div>
-            <div class="form-group">
-                <label for="id_password">Password</label>
-                <input type="password" name="password" id="id_password" required>
+            
+            {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                <div class="{% if message.tags %}{{ message.tags }}{% endif %}-message">
+                    {{ message }}
+                </div>
+                {% endfor %}
             </div>
-            <button type="submit" class="submit-btn">Sign In</button>
-        </form>
-
-        <a href="{% url 'blog:home' %}" class="back-link">
-            <i class="fas fa-arrow-left"></i> Back to Home
-        </a>
+            {% endif %}
+            
+            <form class="auth-form" method="post">
+                {% csrf_token %}
+                
+                {% if next %}
+                <input type="hidden" name="next" value="{{ next }}">
+                {% endif %}
+                
+                <div class="form-group">
+                    <label for="{{ form.username.id_for_label }}">Username</label>
+                    {{ form.username }}
+                    {% if form.username.errors %}
+                    <div class="error-message">{{ form.username.errors }}</div>
+                    {% endif %}
+                </div>
+                
+                <div class="form-group">
+                    <label for="{{ form.password.id_for_label }}">Password</label>
+                    {{ form.password }}
+                    {% if form.password.errors %}
+                    <div class="error-message">{{ form.password.errors }}</div>
+                    {% endif %}
+                </div>
+                
+                {% if form.non_field_errors %}
+                <div class="error-message">
+                    {% for error in form.non_field_errors %}
+                    {{ error }}
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <button type="submit" class="auth-btn">Login</button>
+            </form>
+            
+            <div class="auth-links">
+                <p>Don't have an account? <a href="{% url 'blog:register' %}">Register</a></p>
+            </div>
+        </div>
     </div>
 </body>
 </html> 

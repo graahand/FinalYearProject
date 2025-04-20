@@ -11,8 +11,10 @@ urlpatterns = [
     path('history/', views.history, name='history'),
     
     # Authentication
+    path('register/', views.register, name='register'),
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
+    path('profile/', views.profile, name='profile'),
     
     # Image processing
     path('process-image/', views.process_image, name='process_image'),

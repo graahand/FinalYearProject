@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const fileInput = document.getElementById("file-input");
     const uploadBtn = document.getElementById("upload-btn");
     const cameraBtn = document.getElementById("camera-btn");
+    const resetBtn = document.getElementById("reset-btn");
     const dropZone = document.getElementById("drop-zone");
     const queryInput = document.getElementById("query-input");
     const resultsContainer = document.getElementById("detection-results");
@@ -16,6 +17,7 @@ document.addEventListener("DOMContentLoaded", function() {
         fileInput,
         uploadBtn,
         cameraBtn,
+        resetBtn,
         dropZone,
         queryInput,
         resultsContainer
@@ -55,6 +57,48 @@ document.addEventListener("DOMContentLoaded", function() {
             e.preventDefault();
             if (fileInput.files.length > 0) {
                 processImage(fileInput.files[0]);
+            }
+        });
+    }
+
+    // Reset button click handler
+    if (resetBtn) {
+        resetBtn.addEventListener("click", function(e) {
+            e.preventDefault();
+            console.log("Reset button clicked");
+            // Reset file input and query input
+            if (fileInput) {
+                fileInput.value = '';
+            }
+            if (queryInput) {
+                queryInput.value = '';
+            }
+            
+            // Reset upload button
+            if (uploadBtn) {
+                uploadBtn.disabled = true;
+                uploadBtn.innerHTML = '<span class="btn-icon">⇪</span> Upload';
+            }
+            
+            // Reset drop zone
+            if (dropZone) {
+                dropZone.querySelector('.upload-placeholder').innerHTML = `
+                    <i class="fas fa-cloud-upload-alt fa-3x"></i>
+                    <p>Drop your image here</p>
+                    <p class="upload-or">or</p>
+                    <button class="btn" id="browse-files-btn">Browse Files</button>
+                `;
+                
+                // Re-attach event listener to the browse button
+                const newBrowseBtn = dropZone.querySelector('#browse-files-btn');
+                if (newBrowseBtn) {
+                    newBrowseBtn.addEventListener("click", () => fileInput.click());
+                }
+            }
+            
+            // Clear results container
+            if (resultsContainer) {
+                resultsContainer.innerHTML = '';
             }
         });
     }
@@ -134,6 +178,12 @@ document.addEventListener("DOMContentLoaded", function() {
             }
         })
         .then(response => {
+            if (response.status === 401 || response.status === 403) {
+                // User is not authenticated
+                window.location.href = '/blog/login/?next=/blog/';
+                throw new Error('You need to login to use this feature');
+            }
+            
             if (!response.ok) {
                 throw new Error('Network response was not ok: ' + response.status);
             }
@@ -207,13 +257,6 @@ document.addEventListener("DOMContentLoaded", function() {
                 </div>
             </div>
 
-            <div class="caption-section">
-                <h3>Detailed Caption</h3>
-                <div class="caption-content">
-                    ${data.normal_caption || 'No detailed caption generated'}
-                </div>
-            </div>
-
             ${data.query_result ? `
                 <div class="caption-section">
                     <h3>Query Result</h3>
@@ -222,19 +265,57 @@ document.addEventListener("DOMContentLoaded", function() {
                     </div>
                 </div>
             ` : ''}
+            
+            <div class="upload-another-container">
+                <button id="upload-another-btn" class="btn blue">Upload Again</button>
+            </div>
         `;
+
+        // Add event listener to the "Upload Again" button
+        document.getElementById('upload-another-btn').addEventListener('click', function() {
+            console.log("Upload Again button clicked");
+            // Reset file input and query input
+            if (fileInput) {
+                fileInput.value = '';
+            }
+            if (queryInput) {
+                queryInput.value = '';
+            }
+            
+            // Reset upload button
+            if (uploadBtn) {
+                uploadBtn.disabled = true;
+                uploadBtn.innerHTML = '<span class="btn-icon">⇪</span> Upload';
+            }
+            
+            // Reset drop zone
+            if (dropZone) {
+                dropZone.querySelector('.upload-placeholder').innerHTML = `
+                    <i class="fas fa-cloud-upload-alt fa-3x"></i>
+                    <p>Drop your image here</p>
+                    <p class="upload-or">or</p>
+                    <button class="btn" id="browse-files-btn">Browse Files</button>
+                `;
+                
+                // Re-attach event listener to the browse button
+                const newBrowseBtn = dropZone.querySelector('#browse-files-btn');
+                if (newBrowseBtn) {
+                    newBrowseBtn.addEventListener("click", () => fileInput.click());
+                }
+            }
+            
+            // Clear results container
+            if (resultsContainer) {
+                resultsContainer.innerHTML = '';
+            }
+            
+            // Scroll to upload area
+            dropZone.scrollIntoView({ behavior: 'smooth' });
+        });
 
         // Reset upload button
         uploadBtn.disabled = false;
         uploadBtn.innerHTML = '<span class="btn-icon">⇪</span> Upload';
-
-        // Reset upload area
-        dropZone.querySelector('.upload-placeholder').innerHTML = `
-            <i class="fas fa-cloud-upload-alt fa-3x"></i>
-            <p>Drop your image here</p>
-            <p class="upload-or">or</p>
-            <button class="btn" id="browse-files-btn">Browse Files</button>
-        `;
         
         // Scroll to results
         resultsContainer.scrollIntoView({ behavior: 'smooth' });

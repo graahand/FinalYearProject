@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Analysis System</title>
+    <title>Contextual Object Detection</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'blog/main.css' %}">
     <style>
@@ -53,18 +53,34 @@
 <body>
     <div class="container">
         <header class="header">
-            <h1>Image Analysis System</h1>
+            <h1>Contextual Object Detection</h1>
             {% if user.is_authenticated %}
-            <a href="{% url 'blog:admin_dashboard' %}" class="admin-btn">
-                <i class="fas fa-cog"></i> Admin Dashboard
-            </a>
+            <div class="user-actions" style="display: flex; gap: 10px;">
+                <a href="{% url 'blog:profile' %}" class="btn">
+                    <i class="fas fa-user-circle"></i> {{ user.username }}
+                </a>
+                <a href="{% url 'blog:logout' %}" class="btn">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+                {% if user.is_staff %}
+                <a href="{% url 'blog:admin_dashboard' %}" class="admin-btn">
+                    <i class="fas fa-cog"></i> Admin Dashboard
+                </a>
+                {% endif %}
+            </div>
             {% else %}
-            <a href="{% url 'blog:login' %}" class="login-btn">
-                <i class="fas fa-sign-in-alt"></i> Admin Login
-            </a>
+            <div class="auth-actions" style="display: flex; gap: 10px;">
+                <a href="{% url 'blog:login' %}" class="btn">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </a>
+                <a href="{% url 'blog:register' %}" class="btn blue">
+                    <i class="fas fa-user-plus"></i> Register
+                </a>
+            </div>
             {% endif %}
         </header>
 
+        {% if user.is_authenticated %}
         <div class="upload-section">
             <div class="upload-area" id="drop-zone">
                 <div class="upload-placeholder">
@@ -83,13 +99,32 @@
                 <button class="btn" id="camera-btn">
                     <span class="btn-icon">📷</span> Camera
                 </button>
+                <button class="btn blue" id="reset-btn">
+                    <span class="btn-icon">🔄</span> Upload Again
+                </button>
             </div>
 
             <div class="query-section">
                 <input type="text" id="query-input" class="query-input" placeholder="Ask a question about the image (optional)">
             </div>
         </div>
+        {% else %}
+        <div class="login-required-message" style="background-color: white; padding: 30px; border-radius: 10px; text-align: center; margin: 40px auto; max-width: 600px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <i class="fas fa-lock" style="font-size: 3rem; color: var(--primary); margin-bottom: 20px;"></i>
+            <h2>Login Required</h2>
+            <p style="margin-bottom: 20px; color: var(--text-secondary);">You need to login or create an account to use the contextual object detection features.</p>
+            <div style="display: flex; gap: 15px; justify-content: center;">
+                <a href="{% url 'blog:login' %}" class="btn primary">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </a>
+                <a href="{% url 'blog:register' %}" class="btn blue">
+                    <i class="fas fa-user-plus"></i> Register
+                </a>
+            </div>
+        </div>
+        {% endif %}
 
+        {% if user.is_authenticated %}
         <div id="detection-results" class="results-container">
             {% if analysis_image %}
             <img src="{{ analysis_image }}" alt="Analyzed image" class="result-image">
@@ -98,13 +133,6 @@
                 <h3>Short Caption</h3>
                 <div class="caption-content">
                     {{ short_caption }}
-                </div>
-            </div>
-
-            <div class="caption-section">
-                <h3>Detailed Caption</h3>
-                <div class="caption-content">
-                    {{ normal_caption }}
                 </div>
             </div>
 
@@ -128,6 +156,7 @@
 
         {% if analyses %}
         <div class="analyses-grid">
+            <h2 style="width: 100%; margin-bottom: 20px; color: var(--text-primary);">Recent Analyses</h2>
             {% for analysis in analyses %}
             <div class="analysis-card">
                 {% if analysis.image %}
@@ -155,6 +184,7 @@
             <h2>No Images Analyzed Yet</h2>
             <p>Upload an image to see AI-powered analysis results here.</p>
         </div>
+        {% endif %}
         {% endif %}
     </div>
 

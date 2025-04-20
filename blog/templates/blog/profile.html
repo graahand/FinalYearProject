@@ -1,0 +1,314 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Profile - Contextual Object Detection</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'blog/main.css' %}">
+    <style>
+        .profile-container {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 30px;
+            margin-top: 20px;
+        }
+        
+        .profile-sidebar {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        
+        .profile-content {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+        
+        .profile-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .profile-image {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin: 0 auto 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border: 4px solid var(--primary-light);
+            display: block;
+        }
+        
+        .profile-image-placeholder {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background-color: #f1f1f1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            border: 4px solid var(--primary-light);
+        }
+        
+        .profile-image-placeholder i {
+            font-size: 60px;
+            color: #aaa;
+        }
+        
+        .profile-name {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+            color: var(--text-primary);
+        }
+        
+        .profile-username {
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+        
+        .profile-stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            color: var(--primary);
+            font-weight: bold;
+        }
+        
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        
+        .section-title {
+            color: var(--text-primary);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--primary-light);
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        
+        .profile-btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            display: inline-block;
+            transition: background-color 0.3s;
+        }
+        
+        .profile-btn:hover {
+            background-color: var(--primary-dark);
+        }
+        
+        .analysis-card {
+            display: flex;
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        
+        .analysis-image {
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
+        }
+        
+        .analysis-details {
+            padding: 15px;
+            flex: 1;
+        }
+        
+        .analysis-title {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: var(--text-primary);
+        }
+        
+        .analysis-caption {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+        
+        .analysis-date {
+            font-size: 0.8rem;
+            color: #999;
+        }
+        
+        .no-analyses {
+            padding: 20px;
+            text-align: center;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            color: var(--text-secondary);
+        }
+        
+        .empty-bio {
+            font-style: italic;
+            color: var(--text-secondary);
+        }
+        
+        @media (max-width: 768px) {
+            .profile-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .profile-sidebar {
+                margin-bottom: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Contextual Object Detection</h1>
+            <div class="user-actions">
+                <a href="{% url 'blog:home' %}" class="btn">
+                    <i class="fas fa-home"></i> Home
+                </a>
+                <a href="{% url 'blog:logout' %}" class="btn">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </header>
+        
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="{% if message.tags %}{{ message.tags }}{% endif %}-message" style="padding: 10px; margin-bottom: 20px; border-radius: 5px;">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <div class="profile-container">
+            <div class="profile-sidebar">
+                <div class="profile-header">
+                    {% if user_profile.profile_picture %}
+                    <img src="{{ user_profile.profile_picture.url }}" alt="{{ user.username }}" class="profile-image">
+                    {% else %}
+                    <div class="profile-image-placeholder">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    {% endif %}
+                    <h2 class="profile-name">{{ user.get_full_name }}</h2>
+                    <div class="profile-username">@{{ user.username }}</div>
+                </div>
+                
+                <div class="profile-stats">
+                    <div class="stat-item">
+                        <div class="stat-value">{{ user.analyses.count }}</div>
+                        <div class="stat-label">Analyses</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">{{ user.date_joined|date:"d M Y" }}</div>
+                        <div class="stat-label">Joined</div>
+                    </div>
+                </div>
+                
+                <h3>About</h3>
+                {% if user_profile.bio %}
+                <p>{{ user_profile.bio }}</p>
+                {% else %}
+                <p class="empty-bio">No bio information added yet.</p>
+                {% endif %}
+            </div>
+            
+            <div class="profile-content">
+                <div class="profile-section">
+                    <h2 class="section-title">Edit Profile</h2>
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <label for="{{ form.profile_picture.id_for_label }}">Profile Picture</label>
+                            {{ form.profile_picture }}
+                            {% if form.profile_picture.errors %}
+                            <div class="error-message">{{ form.profile_picture.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="{{ form.bio.id_for_label }}">Bio</label>
+                            {{ form.bio }}
+                            {% if form.bio.errors %}
+                            <div class="error-message">{{ form.bio.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <button type="submit" class="profile-btn">Save Changes</button>
+                    </form>
+                </div>
+                
+                <div class="profile-section" style="margin-top: 40px;">
+                    <h2 class="section-title">Recent Analyses</h2>
+                    {% if user_analyses %}
+                    <div class="analyses-list">
+                        {% for analysis in user_analyses %}
+                        <div class="analysis-card">
+                            {% if analysis.image %}
+                            <img src="{{ analysis.image.url }}" alt="Analysis" class="analysis-image">
+                            {% else %}
+                            <div class="analysis-image-placeholder"></div>
+                            {% endif %}
+                            <div class="analysis-details">
+                                <h3 class="analysis-title">Analysis #{{ analysis.id }}</h3>
+                                <p class="analysis-caption">{{ analysis.short_caption|truncatechars:100 }}</p>
+                                <div class="analysis-date">{{ analysis.upload_date|date:"F d, Y" }}</div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="no-analyses">
+                        <p>You haven't uploaded any images for analysis yet.</p>
+                        <a href="{% url 'blog:home' %}" class="profile-btn" style="margin-top: 10px;">Upload an Image</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

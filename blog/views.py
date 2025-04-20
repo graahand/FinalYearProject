@@ -6,7 +6,8 @@ import io
 import base64
 from django.utils import timezone
 import logging
-from .models import ImageAnalysis, DetectedObject
+from .models import ImageAnalysis, DetectedObject, UserProfile
+from .forms import UserRegistrationForm, UserLoginForm, UserProfileForm
 import os
 from django.contrib.auth.decorators import login_required
 from datetime import timedelta
@@ -41,8 +42,13 @@ logger.info(f"Added VIPS path: {vips_bin_path}")
 def home(request):
     """Render the home page."""
     try:
-        # Get the most recent analyses
-        analyses = ImageAnalysis.objects.order_by('-upload_date')[:5]
+        # Get analyses based on authentication status
+        if request.user.is_authenticated:
+            # Get the most recent analyses for the logged-in user
+            analyses = ImageAnalysis.objects.filter(user=request.user).order_by('-upload_date')[:5]
+        else:
+            # No analyses for unauthenticated users
+            analyses = []
         
         # Prepare context data
         context = {
@@ -71,7 +77,7 @@ def history(request):
         logger.error(f"Error in history view: {str(e)}")
         return render(request, 'blog/history.html', {'analyses': [], 'error': str(e)})
 
-def process_image_task(image_file):
+def process_image_task(image_file, query_text="", user_id=None):
     """Background task for processing images."""
     try:
         # Get model handler instance
@@ -81,18 +87,36 @@ def process_image_task(image_file):
         image = Image.open(image_file).convert("RGB")
         logger.info(f"Processing image: {image_file}")
         
-        # Generate captions and query result
+        # Generate short caption 
         short_caption = model_handler.generate_short_caption(image)
-        normal_caption = model_handler.generate_normal_caption(image)
-        query_result = model_handler.process_query(image)
+        
+        # Process the query if provided, otherwise use default query
+        if query_text.strip():
+            logger.info(f"Processing custom query: {query_text}")
+            query_result = model_handler.process_query(image, query_text)
+        else:
+            # Only generate the caption without a specific query
+            query_result = None
         
         # Create analysis record
-        analysis = ImageAnalysis.objects.create(
-            image=image_file,
-            short_caption=short_caption,
-            normal_caption=normal_caption,
-            query_result=query_result
-        )
+        analysis_data = {
+            'image': image_file,
+            'short_caption': short_caption,
+            'query_text': query_text if query_text.strip() else None,
+            'query_result': query_result
+        }
+        
+        # Associate with user if user_id is provided
+        if user_id:
+            from django.contrib.auth.models import User
+            try:
+                user = User.objects.get(id=user_id)
+                analysis_data['user'] = user
+                logger.info(f"Associating analysis with user: {user.username}")
+            except User.DoesNotExist:
+                logger.warning(f"User with ID {user_id} not found")
+        
+        analysis = ImageAnalysis.objects.create(**analysis_data)
         
         logger.info(f"Created analysis record with ID: {analysis.id}")
         return analysis.id
@@ -100,6 +124,7 @@ def process_image_task(image_file):
         logger.error(f"Error in process_image_task: {str(e)}")
         return None
 
+@login_required(login_url='blog:login')
 def process_image(request):
     """Handle image upload and processing."""
     try:
@@ -112,12 +137,16 @@ def process_image(request):
         # Get optional query text
         query_text = request.POST.get('query_text', '')
         
-        # Enqueue the job
+        # Get user ID if user is authenticated
+        user_id = request.user.id
+        logger.info(f"Processing image for user: {request.user.username}")
+        
+        # Enqueue the job with required arguments
         queue = django_rq.get_queue('default')
         job = queue.enqueue(
-            process_image_task,
-            image_file,
-            job_timeout=600  # 10 minutes timeout
+            'blog.views.process_image_task',  # Use string reference to avoid import issues
+            args=(image_file, query_text, user_id),  # Pass user_id as third argument
+            job_timeout=600                  # 10 minutes timeout
         )
         
         # Return the job ID and initial response
@@ -134,60 +163,85 @@ def process_image(request):
             'details': str(e)
         }, status=500)
 
-def login_view(request):
-    # Check if user is already logged in
+def register(request):
+    """Handle user registration."""
     if request.user.is_authenticated:
-        logger.info(f"User {request.user.username} is already authenticated, redirecting to dashboard")
-        return redirect('blog:admin_dashboard')
+        return redirect('blog:home')
         
     if request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
+        form = UserRegistrationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            # Don't automatically log the user in
+            messages.success(request, f'Account created successfully! Please log in.')
+            # Redirect to login page instead of home
+            return redirect('blog:login')
+    else:
+        form = UserRegistrationForm()
         
-        # Log authentication attempt with detailed information
-        logger.info(f"Login attempt for user: {username}")
-        logger.info(f"CSRF verification: {request.META.get('CSRF_COOKIE', 'Not found')} - Token: {request.POST.get('csrfmiddlewaretoken', 'Not found')}")
+    return render(request, 'blog/register.html', {'form': form})
+
+def login_view(request):
+    """Handle user login."""
+    if request.user.is_authenticated:
+        return redirect('blog:home')
         
-        # Check if username and password are provided
-        if not username or not password:
-            logger.error("Username or password not provided")
-            messages.error(request, 'Please provide both username and password')
-            return render(request, 'blog/login.html')
-            
-        # Attempt authentication
-        user = authenticate(request, username=username, password=password)
+    next_url = request.GET.get('next', 'blog:home')
         
-        logger.info(f"Authentication result for {username}: {'Success' if user else 'Failed'}")
-        
-        if user is not None:
-            logger.info(f"Authentication successful for user: {username}")
-            # Log user details to verify they exist
-            logger.info(f"User details - ID: {user.id}, Username: {user.username}, Is Staff: {user.is_staff}, Is Superuser: {user.is_superuser}")
+    if request.method == 'POST':
+        form = UserLoginForm(data=request.POST)
+        if form.is_valid():
+            username = form.cleaned_data.get('username')
+            password = form.cleaned_data.get('password')
+            user = authenticate(username=username, password=password)
             
-            # Explicitly log the user in
-            login(request, user)
-            
-            # Verify user is now logged in
-            logger.info(f"After login: User authenticated: {request.user.is_authenticated}, Username: {request.user.username}")
-            
-            # Add success message
-            messages.success(request, f'Welcome, {username}!')
-            
-            # Use reverse to ensure correct URL
-            dashboard_url = reverse('blog:admin_dashboard')
-            logger.info(f"Redirecting to: {dashboard_url}")
-            
-            # Redirect to admin dashboard
-            return redirect(dashboard_url)
+            if user is not None:
+                login(request, user)
+                messages.success(request, f'Welcome back, {username}!')
+                # Use the next parameter if available, otherwise go to home
+                next_page = request.POST.get('next', next_url)
+                return redirect(next_page)
         else:
-            logger.error(f"Authentication failed for user: {username}")
-            messages.error(request, 'Invalid username or password')
-    
-    return render(request, 'blog/login.html')
+            messages.error(request, 'Invalid username or password.')
+    else:
+        form = UserLoginForm()
+        
+    context = {
+        'form': form,
+        'next': next_url,
+    }
+    return render(request, 'blog/login.html', context)
 
 def logout_view(request):
+    """Handle user logout."""
     logout(request)
-    return redirect('blog:login')
+    messages.info(request, 'You have been logged out.')
+    return redirect('blog:home')
+
+@login_required(login_url='blog:login')
+def profile(request):
+    """Display and update user profile."""
+    user_profile = request.user.profile
+    
+    if request.method == 'POST':
+        form = UserProfileForm(request.POST, request.FILES, instance=user_profile)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Your profile has been updated!')
+            return redirect('blog:profile')
+    else:
+        form = UserProfileForm(instance=user_profile)
+        
+    # Get user's analyses
+    user_analyses = ImageAnalysis.objects.filter(user=request.user).order_by('-upload_date')[:5]
+    
+    context = {
+        'form': form,
+        'user_profile': user_profile,
+        'user_analyses': user_analyses
+    }
+    
+    return render(request, 'blog/profile.html', context)
 
 @login_required(login_url='blog:login')
 def admin_dashboard(request):
@@ -329,16 +383,16 @@ async def generate_short_caption(image):
         logger.error(f"Error in generate_short_caption: {str(e)}")
         return "Error generating short caption"
 
-async def generate_normal_caption(image):
-    """Generate a detailed caption for the image."""
-    try:
-        model_handler = ModelHandler.get_instance()
-        result = model_handler.generate_normal_caption(image)
-        logger.info(f"Generated normal caption: {result}")
-        return result
-    except Exception as e:
-        logger.error(f"Error in generate_normal_caption: {str(e)}")
-        return "Error generating detailed caption"
+# async def generate_normal_caption(image):
+#     """Generate a detailed caption for the image."""
+#     try:
+#         model_handler = ModelHandler.get_instance()
+#         # result = model_handler.generate_normal_caption(image)
+#         logger.info(f"Generated normal caption: {result}")
+#         return result
+#     except Exception as e:
+#         logger.error(f"Error in generate_normal_caption: {str(e)}")
+#         return "Error generating detailed caption"
 
 async def process_query(image, query="What is in this image?"):
     """Process a specific query about the image."""
@@ -386,7 +440,7 @@ def check_job_status(request, job_id):
                     'status': 'completed',
                     'image_url': analysis.image.url,
                     'short_caption': analysis.short_caption,
-                    'normal_caption': analysis.normal_caption,
+                    'query_text': analysis.query_text,
                     'query_result': analysis.query_result
                 })
             except ImageAnalysis.DoesNotExist:
