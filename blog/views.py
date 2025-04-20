@@ -142,19 +142,48 @@ def process_image(request):
         logger.info(f"Processing image for user: {request.user.username}")
         
         # Enqueue the job with required arguments
-        queue = django_rq.get_queue('default')
-        job = queue.enqueue(
-            'blog.views.process_image_task',  # Use string reference to avoid import issues
-            args=(image_file, query_text, user_id),  # Pass user_id as third argument
-            job_timeout=600                  # 10 minutes timeout
-        )
-        
-        # Return the job ID and initial response
-        return JsonResponse({
-            'job_id': job.id,
-            'status': 'processing',
-            'message': 'Image uploaded and processing started'
-        })
+        try:
+            queue = django_rq.get_queue('default')
+            job = queue.enqueue(
+                'blog.views.process_image_task',  # Use string reference to avoid import issues
+                args=(image_file, query_text, user_id),  # Pass user_id as third argument
+                job_timeout=1200,  # 20 minutes timeout (increased from 10)
+                result_ttl=86400  # Results stored for 24 hours
+            )
+            
+            # Return the job ID and initial response
+            return JsonResponse({
+                'job_id': job.id,
+                'status': 'processing',
+                'message': 'Image uploaded and processing started'
+            })
+        except Exception as redis_error:
+            logger.error(f"Redis error: {str(redis_error)}")
+            # Fall back to direct processing without Redis
+            try:
+                # Process directly without Redis
+                analysis_id = process_image_task(image_file, query_text, user_id)
+                if analysis_id:
+                    analysis = ImageAnalysis.objects.get(id=analysis_id)
+                    return JsonResponse({
+                        'status': 'completed',
+                        'message': 'Image processed directly (Redis unavailable)',
+                        'image_url': analysis.image.url,
+                        'short_caption': analysis.short_caption,
+                        'query_text': analysis.query_text,
+                        'query_result': analysis.query_result
+                    })
+                else:
+                    return JsonResponse({
+                        'status': 'failed',
+                        'error': 'Failed to process image directly'
+                    }, status=500)
+            except Exception as direct_error:
+                logger.error(f"Direct processing error: {str(direct_error)}")
+                return JsonResponse({
+                    'error': 'Error processing image (Redis and direct processing failed)',
+                    'details': str(direct_error)
+                }, status=500)
         
     except Exception as e:
         logger.error(f"Error in process_image view: {str(e)}")
@@ -189,11 +218,11 @@ def login_view(request):
     next_url = request.GET.get('next', 'blog:home')
         
     if request.method == 'POST':
-        form = UserLoginForm(data=request.POST)
+        form = UserLoginForm(request=request, data=request.POST)
         if form.is_valid():
             username = form.cleaned_data.get('username')
             password = form.cleaned_data.get('password')
-            user = authenticate(username=username, password=password)
+            user = authenticate(request=request, username=username, password=password)
             
             if user is not None:
                 login(request, user)
@@ -409,7 +438,14 @@ def check_job_status(request, job_id):
     """Check the status of a background job."""
     try:
         # Get the job from Redis
-        job = django_rq.get_queue().fetch_job(job_id)
+        try:
+            job = django_rq.get_queue().fetch_job(job_id)
+        except Exception as redis_error:
+            logger.error(f"Redis error in check_job_status: {str(redis_error)}")
+            return JsonResponse({
+                'status': 'failed',
+                'error': 'Redis connection error. Please try again.'
+            }, status=500)
         
         if job is None:
             return JsonResponse({

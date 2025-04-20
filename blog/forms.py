@@ -63,6 +63,10 @@ class UserLoginForm(AuthenticationForm):
         'placeholder': 'Enter your password'
     }))
     
+    def __init__(self, *args, **kwargs):
+        super(UserLoginForm, self).__init__(*args, **kwargs)
+        # Add CSRF token handling
+
     class Meta:
         model = User
         fields = ['username', 'password']

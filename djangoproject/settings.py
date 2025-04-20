@@ -143,9 +143,9 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # Login URLs
-LOGIN_URL = '/login/'
-LOGIN_REDIRECT_URL = '/admin-dashboard/'
-LOGOUT_REDIRECT_URL = '/login/'
+LOGIN_URL = '/blog/login/'
+LOGIN_REDIRECT_URL = '/blog/'
+LOGOUT_REDIRECT_URL = '/blog/login/'
 
 # Redis and RQ configuration
 RQ_QUEUES = {
@@ -153,27 +153,39 @@ RQ_QUEUES = {
         'HOST': 'localhost',
         'PORT': 6379,
         'DB': 0,
-        'DEFAULT_TIMEOUT': 600,  # Increased timeout for model processing
-        'RESULT_TTL': 3600,
+        'DEFAULT_TIMEOUT': 1200,  # 20 minutes timeout
+        'RESULT_TTL': 86400,     # 24 hours TTL for results
+        'CONNECTION_TIMEOUT': 30, # 30 seconds connection timeout
+        'SOCKET_TIMEOUT': 30,     # 30 seconds socket timeout
     },
     'high': {
         'HOST': 'localhost',
         'PORT': 6379,
         'DB': 0,
-        'DEFAULT_TIMEOUT': 600,
-        'RESULT_TTL': 3600,
+        'DEFAULT_TIMEOUT': 1200,
+        'RESULT_TTL': 86400,
+        'CONNECTION_TIMEOUT': 30,
+        'SOCKET_TIMEOUT': 30,
     },
     'low': {
         'HOST': 'localhost',
         'PORT': 6379,
         'DB': 0,
-        'DEFAULT_TIMEOUT': 600,
-        'RESULT_TTL': 3600,
+        'DEFAULT_TIMEOUT': 1200,
+        'RESULT_TTL': 86400,
+        'CONNECTION_TIMEOUT': 30,
+        'SOCKET_TIMEOUT': 30,
     }
 }
 
 # RQ Settings
 RQ_SHOW_ADMIN_LINK = True
 RQ_ASYNC = True  # Enable async processing
+
+# CSRF Settings
+CSRF_COOKIE_SECURE = False  # Set to True in production with HTTPS
+CSRF_COOKIE_HTTPONLY = False  # False allows JavaScript to access the cookie
+CSRF_USE_SESSIONS = True  # Store CSRF token in the session instead of cookie
+CSRF_COOKIE_SAMESITE = 'Lax'  # Prevents CSRF in most cases while allowing common use
 
 

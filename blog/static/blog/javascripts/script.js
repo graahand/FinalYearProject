@@ -214,14 +214,50 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     function pollForResults(jobId) {
+        // Set a maximum poll count to avoid infinite polling
+        let pollCount = 0;
+        const maxPolls = 30; // Maximum number of polling attempts (10 minutes total)
+        
         const pollInterval = setInterval(() => {
-            fetch(`/blog/check-job/${jobId}/`, {
-                method: 'GET',
-                headers: {
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            pollCount++;
+            
+            // Check if we've reached the maximum number of polls
+            if (pollCount > maxPolls) {
+                clearInterval(pollInterval);
+                resultsContainer.innerHTML = `
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <p>Processing is taking longer than expected. Please try again later.</p>
+                        <button id="retry-btn" class="btn primary" style="margin-top: 15px;">
+                            <i class="fas fa-redo"></i> Try Again
+                        </button>
+                    </div>
+                `;
+                
+                // Add event listener to the retry button
+                document.getElementById('retry-btn').addEventListener('click', () => {
+                    window.location.reload();
+                });
+                
+                // Reset upload button
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = '<span class="btn-icon">⇪</span> Upload';
+                return;
+            }
+            
+            fetch(`/blog/check-job/${jobId}/`)
+            .then(response => {
+                if (!response.ok) {
+                    if (response.status === 500) {
+                        throw new Error('Server error. Please try again.');
+                    } else if (response.status === 404) {
+                        throw new Error('Job not found. It may have expired.');
+                    } else {
+                        throw new Error('Network response was not ok: ' + response.status);
+                    }
                 }
+                return response.json();
             })
-            .then(response => response.json())
             .then(data => {
                 if (data.status === 'completed') {
                     clearInterval(pollInterval);

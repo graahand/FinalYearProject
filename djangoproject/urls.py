@@ -6,16 +6,20 @@ from django.views.generic.base import RedirectView
 from django.shortcuts import redirect
 from django.views.decorators.csrf import csrf_exempt
 
-def redirect_to_home(request):
-    return redirect('blog:home')
+def redirect_to_login_or_home(request):
+    """Redirect to login page for non-authenticated users, home page for authenticated users."""
+    if request.user.is_authenticated:
+        return redirect('blog:home')
+    else:
+        return redirect('blog:login')
 
 def redirect_process_image(request):
     # Redirect while preserving request method and data
     return redirect('/blog/process-image/', permanent=True)
 
 urlpatterns = [
-    # Redirect root URL to home page
-    path('', redirect_to_home, name='root'),
+    # Redirect root URL to login page or home page based on authentication
+    path('', redirect_to_login_or_home, name='root'),
     
     # Redirect old process-image URL to the correct one
     path('process-image/', csrf_exempt(redirect_process_image)),
