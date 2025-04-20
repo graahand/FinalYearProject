@@ -55,9 +55,14 @@
         <header class="header">
             <h1>Contextual Object Detection</h1>
             {% if user.is_authenticated %}
-            <div class="user-actions" style="display: flex; gap: 10px;">
-                <a href="{% url 'blog:profile' %}" class="btn">
-                    <i class="fas fa-user-circle"></i> {{ user.username }}
+            <div class="user-actions" style="display: flex; gap: 10px; align-items: center;">
+                <a href="{% url 'blog:profile' %}" class="btn" style="display: flex; align-items: center; gap: 10px;">
+                    {% if user.profile.profile_picture %}
+                    <img src="{{ user.profile.profile_picture.url }}" alt="{{ user.username }}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover;">
+                    {% else %}
+                    <i class="fas fa-user-circle"></i>
+                    {% endif %}
+                    {{ user.username }}
                 </a>
                 <a href="{% url 'blog:logout' %}" class="btn">
                     <i class="fas fa-sign-out-alt"></i> Logout
