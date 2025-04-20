@@ -26,4 +26,7 @@ urlpatterns = [
     path('analysis/<int:pk>/', views.analysis_detail, name='analysis_detail'),
     path('analysis/<int:pk>/delete/', views.analysis_delete, name='analysis_delete'),
     path('check-job/<str:job_id>/', views.check_job_status, name='check_job_status'),
+    
+    # Speech to text
+    path('speech-to-text/', views.speech_to_text, name='speech_to_text'),
 ]

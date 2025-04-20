@@ -26,6 +26,8 @@ try:
     import django_rq
 except ImportError:
     raise ImportError("Please install django-rq: pip install django-rq")
+from .speech_to_text import SpeechRecognizer
+import threading
 
 # Set multiprocessing start method
 mp.set_start_method('spawn', force=True)
@@ -38,6 +40,20 @@ logger = logging.getLogger(__name__)
 vips_bin_path = "/home/putu/Documents/vips-dev-w64-web-8.16.1/vips-dev-8.16/bin"
 os.environ["PATH"] = vips_bin_path + os.pathsep + os.environ["PATH"]
 logger.info(f"Added VIPS path: {vips_bin_path}")
+
+# Create a global speech recognizer instance with a shorter timeout
+speech_recognizer = None
+speech_lock = threading.Lock()
+
+def get_speech_recognizer():
+    global speech_recognizer
+    if speech_recognizer is None:
+        try:
+            speech_recognizer = SpeechRecognizer(recording_time=15)
+            logger.info("Speech recognizer initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize speech recognizer: {str(e)}")
+    return speech_recognizer
 
 def home(request):
     """Render the home page."""
@@ -496,4 +512,63 @@ def check_job_status(request, job_id):
         return JsonResponse({
             'status': 'failed',
             'error': str(e)
-        }, status=500) 
+        }, status=500)
+
+@csrf_exempt
+@login_required
+def speech_to_text(request):
+    """Handle speech-to-text conversion."""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            action = data.get('action')
+            
+            recognizer = get_speech_recognizer()
+            if not recognizer:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Speech recognition service is not available'
+                }, status=503)
+            
+            with speech_lock:  # Use lock to prevent concurrent access
+                if action == 'start':
+                    # Start the speech recognition
+                    success = recognizer.start_recording()
+                    return JsonResponse({
+                        'status': 'recording' if success else 'error',
+                        'message': 'Recording started' if success else 'Failed to start recording'
+                    })
+                
+                elif action == 'stop':
+                    # Stop the speech recognition
+                    recognizer.stop_recording()
+                    text = recognizer.get_text()
+                    return JsonResponse({
+                        'status': 'success',
+                        'text': text
+                    })
+                    
+                elif action == 'status':
+                    # Get the current status
+                    return JsonResponse({
+                        'status': 'recording' if recognizer.is_recording else 'idle',
+                        'text': recognizer.get_text()
+                    })
+                    
+                else:
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': 'Invalid action'
+                    }, status=400)
+                    
+        except Exception as e:
+            logger.error(f"Error in speech_to_text view: {str(e)}")
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e)
+            }, status=500)
+            
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Method not allowed'
+    }, status=405) 

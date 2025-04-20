@@ -75,7 +75,8 @@ class UserProfileForm(forms.ModelForm):
     bio = forms.CharField(required=False, widget=forms.Textarea(attrs={
         'class': 'form-control',
         'placeholder': 'Tell us about yourself',
-        'rows': 4
+        'rows': 4,
+        'spellcheck': 'false'
     }))
     profile_picture = forms.ImageField(required=False, widget=forms.FileInput(attrs={
         'class': 'form-control'

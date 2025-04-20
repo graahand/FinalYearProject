@@ -35,12 +35,18 @@
         .query-section {
             margin-top: 20px;
         }
+        .query-input-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
         .query-input {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 10px;
+            flex: 1;
+            padding: 12px;
             border: 1px solid #ddd;
             border-radius: 4px;
+            font-size: 1rem;
         }
         .result-image {
             max-width: 100%;
@@ -48,9 +54,47 @@
             margin-bottom: 20px;
             border-radius: 8px;
         }
+        #speech-to-text-btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+        #speech-to-text-btn:hover {
+            background-color: var(--primary-dark);
+            transform: scale(1.05);
+        }
+        #speech-to-text-btn.recording {
+            background-color: var(--error);
+            animation: pulse 2s infinite;
+        }
+        #speech-to-text-btn i {
+            font-size: 1.2rem;
+        }
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(244, 67, 54, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(244, 67, 54, 0);
+            }
+        }
     </style>
 </head>
 <body>
+    {% csrf_token %}
     <div class="container">
         <header class="header">
             <h1>Contextual Object Detection</h1>
@@ -110,7 +154,12 @@
             </div>
 
             <div class="query-section">
-                <input type="text" id="query-input" class="query-input" placeholder="Ask a question about the image (optional)">
+                <div class="query-input-container">
+                    <input type="text" id="query-input" class="query-input" placeholder="Ask a question about the image (optional)">
+                    <button id="speech-to-text-btn" class="btn" title="Speak your question (15s)">
+                        <i class="fas fa-microphone"></i>
+                    </button>
+                </div>
             </div>
         </div>
         {% else %}
@@ -193,7 +242,6 @@
         {% endif %}
     </div>
 
-    {% csrf_token %}
-    <script src="{% static 'blog/javascripts/script.js' %}?v=2"></script>
+    <script src="{% static 'blog/javascripts/script.js' %}?v=3"></script>
 </body>
 </html>

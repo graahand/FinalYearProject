@@ -10,6 +10,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const dropZone = document.getElementById("drop-zone");
     const queryInput = document.getElementById("query-input");
     const resultsContainer = document.getElementById("detection-results");
+    const speechToTextBtn = document.getElementById("speech-to-text-btn");
 
     // Debug which elements are found
     const elements = {
@@ -20,7 +21,8 @@ document.addEventListener("DOMContentLoaded", function() {
         resetBtn,
         dropZone,
         queryInput,
-        resultsContainer
+        resultsContainer,
+        speechToTextBtn
     };
 
     console.log("Found elements:", Object.fromEntries(
@@ -216,7 +218,15 @@ document.addEventListener("DOMContentLoaded", function() {
     function pollForResults(jobId) {
         // Set a maximum poll count to avoid infinite polling
         let pollCount = 0;
-        const maxPolls = 30; // Maximum number of polling attempts (10 minutes total)
+        const maxPolls = 120; // Maximum number of polling attempts (4 minutes total)
+        
+        // Show loading indicator
+        resultsContainer.innerHTML = `
+            <div class="loading-message">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Processing your image... This may take up to 2 minutes.</p>
+            </div>
+        `;
         
         const pollInterval = setInterval(() => {
             pollCount++;
@@ -418,5 +428,144 @@ document.addEventListener("DOMContentLoaded", function() {
                     cameraContainer.remove();
                 });
         });
+    }
+
+    // Speech to text functionality
+    if (speechToTextBtn) {
+        let isRecording = false;
+        let statusCheckInterval;
+
+        speechToTextBtn.addEventListener("click", function() {
+            if (isRecording) {
+                stopSpeechRecording();
+            } else {
+                startSpeechRecording();
+            }
+        });
+
+        function startSpeechRecording() {
+            // Get CSRF token
+            const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+            // Update UI to show recording state
+            speechToTextBtn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+            speechToTextBtn.classList.add('recording');
+            speechToTextBtn.title = 'Stop recording';
+            isRecording = true;
+
+            // Show a countdown timer
+            const originalPlaceholder = queryInput.placeholder;
+            let secondsLeft = 15;
+            queryInput.placeholder = `Listening... (${secondsLeft}s)`;
+            
+            const countdownInterval = setInterval(() => {
+                secondsLeft--;
+                if (secondsLeft > 0) {
+                    queryInput.placeholder = `Listening... (${secondsLeft}s)`;
+                } else {
+                    clearInterval(countdownInterval);
+                }
+            }, 1000);
+
+            // Start the speech recognition
+            fetch('/blog/speech-to-text/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({ action: 'start' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Speech recognition started:', data);
+                
+                // Start checking for results
+                statusCheckInterval = setInterval(() => {
+                    fetch('/blog/speech-to-text/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrftoken
+                        },
+                        body: JSON.stringify({ action: 'status' })
+                    })
+                    .then(response => response.json())
+                    .then(statusData => {
+                        if (statusData.text) {
+                            queryInput.value = statusData.text;
+                        }
+                        
+                        // If recording completed
+                        if (statusData.status !== 'recording') {
+                            clearInterval(statusCheckInterval);
+                            resetSpeechUI(originalPlaceholder);
+                            clearInterval(countdownInterval);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking speech status:', error);
+                        clearInterval(statusCheckInterval);
+                        resetSpeechUI(originalPlaceholder);
+                        clearInterval(countdownInterval);
+                    });
+                }, 1000);
+                
+                // Auto stop after 15 seconds
+                setTimeout(() => {
+                    if (isRecording) {
+                        stopSpeechRecording();
+                        clearInterval(countdownInterval);
+                        resetSpeechUI(originalPlaceholder);
+                    }
+                }, 15000);
+            })
+            .catch(error => {
+                console.error('Error starting speech recognition:', error);
+                resetSpeechUI(originalPlaceholder);
+                clearInterval(countdownInterval);
+            });
+        }
+
+        function stopSpeechRecording() {
+            if (!isRecording) return;
+            
+            // Get CSRF token
+            const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            
+            // Stop the speech recognition
+            fetch('/blog/speech-to-text/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken
+                },
+                body: JSON.stringify({ action: 'stop' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Speech recognition stopped:', data);
+                if (data.text) {
+                    queryInput.value = data.text;
+                }
+                resetSpeechUI();
+            })
+            .catch(error => {
+                console.error('Error stopping speech recognition:', error);
+                resetSpeechUI();
+            });
+        }
+
+        function resetSpeechUI(originalPlaceholder) {
+            speechToTextBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+            speechToTextBtn.classList.remove('recording');
+            speechToTextBtn.title = 'Speak your question (15s)';
+            isRecording = false;
+            clearInterval(statusCheckInterval);
+            
+            if (originalPlaceholder) {
+                queryInput.placeholder = originalPlaceholder;
+            }
+        }
     }
 });

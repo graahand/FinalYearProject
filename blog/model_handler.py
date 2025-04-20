@@ -49,7 +49,7 @@ class ModelHandler:
                     # For CUDA, use device_map="auto" with memory optimization
                     self._model = AutoModelForCausalLM.from_pretrained(
                         "vikhyatk/moondream2",
-                        revision="2025-03-27",
+                        revision="2025-04-14",
                         trust_remote_code=True,
                         device_map="auto",
                         torch_dtype=torch.float16,  # Use half precision to reduce memory usage
@@ -59,7 +59,7 @@ class ModelHandler:
                     # For CPU, use memory optimization
                     self._model = AutoModelForCausalLM.from_pretrained(
                         "vikhyatk/moondream2",
-                        revision="2025-03-27",
+                        revision="2025-04-14",
                         trust_remote_code=True,
                         low_cpu_mem_usage=True
                     )
